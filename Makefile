@@ -21,3 +21,6 @@ worker: worker.cpp struct.h
 
 logger: logger.cpp struct.h
 	$(CXX) $(CXXFLAGS) -o logger logger.cpp $(LIBRARIES)
+
+clean:
+	rm -f $(EXECUTABLES) *.o
