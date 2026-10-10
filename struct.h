@@ -1,9 +1,9 @@
-// struct.h - shared definitions for all four processes (CS 4348 Project 1)
+//Name : Aditya S, Akshaya M
+// struct.h - shared definitions for all four processes
 #ifndef STRUCT_H
 #define STRUCT_H
 
 #include <cerrno>
-#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -157,7 +157,7 @@ struct Slot {
     uint8_t logged; // set by Logger
     uint8_t pad0[2];
     uint64_t job_id;
-    int32_t lient_pid;
+    int32_t client_pid;
     int32_t  worker_pid;
     uint32_t job_type;
     uint32_t outcome;
@@ -264,14 +264,19 @@ inline void shm_lock(pthread_mutex_t* m) {
 }
 inline void shm_unlock(pthread_mutex_t* m) { pthread_mutex_unlock(m); }
 
+// Cut text down to at most max_len characters (no marker is added).
+inline std::string truncate_text(const std::string& s, size_t max_len) {
+    return s.size() <= max_len ? s : s.substr(0, max_len);
+}
+
+// Left-align text in a field of the given width (pads with spaces).
+inline std::string pad_right(const std::string& s, size_t width) {
+    return s.size() >= width ? s : s + std::string(width - s.size(), ' ');
+}
+
 // Append an event to the shared ring buffer (read by the Logger).
-inline void post_event(SharedRegion* r, uint32_t type, int32_t pid, uint64_t job_id, const char* fmt, ...) __attribute__((format(printf, 5, 6)));
-inline void post_event(SharedRegion* r, uint32_t type, int32_t pid, uint64_t job_id,const char* fmt, ...) {
-    char text[EVENT_TEXT] = {0};
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(text, sizeof text, fmt, ap);
-    va_end(ap);
+// The caller builds the message text itself (see std::to_string).
+inline void post_event(SharedRegion* r, uint32_t type, int32_t pid, uint64_t job_id, const std::string& text) {
     shm_lock(&r->header.event_lock);
     Event& e = r->header.events[r->header.event_head % EVENT_RING];
     e.seq     = r->header.event_head;
@@ -279,7 +284,9 @@ inline void post_event(SharedRegion* r, uint32_t type, int32_t pid, uint64_t job
     e.pid     = pid;
     e.type    = type;
     e.job_id  = job_id;
-    memcpy(e.text, text, sizeof e.text);
+    memset(e.text, 0, sizeof e.text);
+    size_t n = text.size() < EVENT_TEXT - 1 ? text.size() : EVENT_TEXT - 1;
+    memcpy(e.text, text.data(), n);
     r->header.event_head++;
     shm_unlock(&r->header.event_lock);
 }
@@ -408,7 +415,7 @@ inline bool validate_params(uint32_t type, const std::string& p, std::string& er
 
 inline std::string make_description(uint32_t type, const std::string& params) {
     std::string d = job_name(type);
-    d += " (" + params.substr(0, 60) + (params.size() > 60 ? "..." : "") + ")";
+    d += " (" + truncate_text(params, 60) + ")";
     return d;
 }
 
