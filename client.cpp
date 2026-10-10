@@ -127,7 +127,7 @@ int main() {
             }
 
             // ask user for job parameters
-            printf("enter job parameters");
+            printf("enter job parameters: ");
             fflush(stdout);
 
             // make sure parameters are entered
@@ -158,7 +158,7 @@ int main() {
             if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
                 unsigned long job_id = 0;
                 // make sure job id is valid and non-reserved
-                if (sscanf(buffer, "%lu", &request.job_id) != 1 || request.job_id == 0) {
+                if (sscanf(buffer, "%llu", &request.job_id) != 1 || request.job_id == 0) {
                     printf("invalid job id. please try again.\n");
                     fflush(stdout);
                     continue;
@@ -229,8 +229,14 @@ int main() {
         // parse and print reply 
         if (bytes_read >= sizeof(ReplyHeader)) {
             ReplyHeader* reply = (ReplyHeader*)reply_buffer;
-            printf("Received reply: type=%u, job_id=%lu, status=%u, flags=%u, payload_len=%u\n",
-                   reply->reply_type, reply->job_id, reply->status, reply->flags, reply->payload_len);
+            // if error print that out 
+            if (reply->reply_type == REPLY_ERROR) {
+                printf("Received error reply: code=%u\n", reply->status);
+            } else {
+                printf("Received reply: type=%u, job_id=%llu, status=%s, flags=%u, payload_len=%u\n",
+                       reply->reply_type, reply->job_id, job_state_name(reply->status), reply->flags, reply->payload_len);
+            }
+            // if there is a result, print it out
             if (reply->payload_len > 0 && bytes_read >= sizeof(ReplyHeader) + reply->payload_len) {
                 printf("Payload: %.*s\n", reply->payload_len, reply_buffer + sizeof(ReplyHeader));
             }
