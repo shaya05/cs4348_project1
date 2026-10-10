@@ -1,6 +1,4 @@
 // struct.h - shared definitions for all four processes (CS 4348 Project 1)
-#define _GNU_SOURCE
-#define _XOPEN_SOURCE 700
 
 #ifndef STRUCT_H
 #define STRUCT_H
@@ -261,7 +259,7 @@ inline const char* event_name(uint32_t t) {
 
 // Lock a (robust) process-shared mutex. If a process died while holding it,
 // mark it consistent so the system keeps running.
-inline void shm_lock(pthread_mutex_t* m) {
+inline void shm_lock(pthread_mutex_t* m) {  
     int rc = pthread_mutex_lock(m);
     if (rc == EOWNERDEAD) pthread_mutex_consistent(m);
 }
