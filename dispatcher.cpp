@@ -88,7 +88,7 @@ int main() {
     }
 
     // open the request fifo
-    int r_fd = open(REQUEST_FIFO_PATH, O_RDONLY);
+    int r_fd = open(REQUEST_FIFO_PATH, O_RDWR);
     if (r_fd < 0) {
         errormsg("ERROR: unable to open request FIFO");
     }
