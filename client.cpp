@@ -1,7 +1,10 @@
+// Name: Aditya Singh, Akshaya Muthusamy
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -14,6 +17,87 @@
 void errormsg( const char *msg ) {
     perror( msg );
     exit( 1 );
+}
+
+// print one reply from the dispatcher in a readable way
+void print_reply(const ReplyHeader &h, const std::string &payload) {
+    switch (h.reply_type) {
+    case REPLY_ACK:
+        // an ACK for a SUBMIT carries the job id the dispatcher assigned
+        if (h.job_id != 0) {
+            printf("\n[ACK] Job accepted. Your job ID is %llu\n%s\n", (unsigned long long)h.job_id, payload.c_str());
+            printf("Use STATUS with job id %llu to check on it.\n", (unsigned long long)h.job_id);
+        } else {
+            printf("\n[ACK] %s\n", payload.c_str());
+        }
+        break;
+    case REPLY_RESULT:
+        printf("\n[RESULT] Job %llu %s\n%s\n", (unsigned long long)h.job_id,
+               h.status == JOB_FAILED ? "FAILED" : "finished", payload.c_str());
+        if (h.flags & REPLY_FLAG_TRUNCATED) {
+            printf("(result was truncated)\n");
+        }
+        break;
+    case REPLY_STATUS:
+        printf("\n[STATUS]\n%s", payload.c_str());
+        break;
+    case REPLY_LIST:
+        printf("\n[LIST]\n%s", payload.c_str());
+        break;
+    case REPLY_STATS:
+        printf("\n[STATS]\n%s", payload.c_str());
+        break;
+    case REPLY_ERROR:
+        printf("\n[ERROR %s] %s\n", err_name(h.status), payload.c_str());
+        break;
+    default:
+        printf("\n[?] unknown reply type %u\n", h.reply_type);
+    }
+    fflush(stdout);
+}
+
+// print every complete reply waiting in the reply fifo
+// waits up to timeout_ms for data to show up (0 = just check what is already there)
+void print_replies(int r_fd, int timeout_ms) {
+    // bytes that were read but not parsed yet (a reply may arrive in pieces,
+    // and several replies may arrive in one read)
+    static std::string pending;
+
+    struct pollfd p;
+    p.fd = r_fd;
+    p.events = POLLIN;
+    p.revents = 0;
+
+    if (poll(&p, 1, timeout_ms) > 0) {
+        char tmp[REPLY_MAX_TOTAL];
+        ssize_t n;
+        // fifo is non-blocking so this stops when it is empty
+        while ((n = read(r_fd, tmp, sizeof(tmp))) > 0) {
+            pending.append(tmp, (size_t)n);
+        }
+    }
+
+    // pull out each full reply: 32 byte header followed by payload_len bytes
+    while (pending.size() >= sizeof(ReplyHeader)) {
+        ReplyHeader h;
+        memcpy(&h, pending.data(), sizeof(h));
+
+        // sanity check so a corrupt message can't make us wait forever
+        if (h.version != PROTO_VERSION || h.payload_len > REPLY_MAX_PAYLOAD) {
+            printf("received a corrupt reply, discarding it.\n");
+            pending.clear();
+            return;
+        }
+
+        size_t total = sizeof(h) + h.payload_len;
+        if (pending.size() < total) {
+            break; // rest of this reply has not arrived yet
+        }
+
+        std::string payload = pending.substr(sizeof(h), h.payload_len);
+        pending.erase(0, total);
+        print_reply(h, payload);
+    }
 }
 
 // main
@@ -34,17 +118,33 @@ int main() {
         errormsg("ERROR: unable to create the reply named pipe");
     }
 
+    // open the reply fifo ONCE and keep it open for the whole run
+    // O_RDWR so the dispatcher can open the write end any time (even long after
+    // we sent the request) and so we never see end-of-file
+    // O_NONBLOCK so reading never gets stuck when nothing has arrived
+    int r_fd = open(reply_path, O_RDWR | O_NONBLOCK);
+    if (r_fd < 0) {
+        unlink(reply_path);
+        errormsg("ERROR: unable to open reply fifo");
+    }
+
+    // writing to a fifo nobody reads should give an error, not kill us
+    signal(SIGPIPE, SIG_IGN);
+
     char buffer[256];
     bool running = true;
 
     // main loop to get requests and keep checkign for requests
     while (running) {
+        // show any results that finished since the last time we looked
+        print_replies(r_fd, 0);
+
         // create a request and set up basic stuff
         Request request;
         memset(&request, 0, sizeof(request)); // allocate the 512 bytes and zero them out
         request.version = PROTO_VERSION; // set the protocol version
         request.client_pid = getpid();
-        request.job_id = 0; // default job id
+        request.job_id = 0; // default job id (the dispatcher assigns ids on SUBMIT)
 
         // provide message types
         printf("\n Requests:\n");
@@ -156,9 +256,9 @@ int main() {
 
             // make sure a job id is entered
             if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
-                unsigned long job_id = 0;
+                unsigned long long job_id = 0;
                 // make sure job id is valid and non-reserved
-                if (sscanf(buffer, "%lu", &request.job_id) != 1 || request.job_id == 0) {
+                if (sscanf(buffer, "%llu", &job_id) != 1 || job_id == 0) {
                     printf("invalid job id. please try again.\n");
                     fflush(stdout);
                     continue;
@@ -173,11 +273,11 @@ int main() {
 
         }
         else if (request.msg_type == MSG_LIST) {
-            printf("requesting list of jobs from dispatcher...\n");
+            printf("requesting list of jobs from dispatcher.\n");
             fflush(stdout);
         }
         else if (request.msg_type == MSG_STATS) {
-            printf("requesting stats from dispatcher...\n");
+            printf("requesting stats from dispatcher.\n");
             fflush(stdout);
         }
 
@@ -185,71 +285,40 @@ int main() {
         strncpy(request.reply_fifo, reply_path, sizeof(request.reply_fifo) - 1);
 
         // open the dispatcher fifo for writing
-        int d_fd = open(REQUEST_FIFO_PATH, O_WRONLY);
-        // if unable to open 
+        // O_NONBLOCK so we get an error right away if the dispatcher is not running
+        // (a normal blocking open would hang forever)
+        int d_fd = open(REQUEST_FIFO_PATH, O_WRONLY | O_NONBLOCK);
+        // if unable to open, tell the user and let them try again
         if (d_fd < 0) {
-            unlink(reply_path); // remove the reply fifo before exiting
-            errormsg("ERROR: unable to open dispatcher fifo for writing");
+            printf("cannot reach the dispatcher (%s). is it running?\n", strerror(errno));
+            fflush(stdout);
+            continue;
         }
 
         // write the request message to the dispatcher fifo
-        if (write(d_fd, &request, sizeof(Request)) < 0) {
-            close(d_fd);
-            unlink(reply_path); // remove the reply fifo before exiting
-            errormsg("ERROR: unable to write request message to dispatcher fifo");
+        // (512 bytes is less than PIPE_BUF so the write is atomic even with many clients)
+        ssize_t bytes_written = write(d_fd, &request, sizeof(Request));
+        close(d_fd);
+        if (bytes_written != (ssize_t)sizeof(Request)) {
+            printf("failed to send the request to the dispatcher.\n");
+            fflush(stdout);
+            continue;
         }
 
         // indicate that the request has been sent
         printf("request sent to dispatcher.\n");
         fflush(stdout);
 
-        // close the dispatcher fifo
-        close(d_fd);
-
-        // open the reply fifo for reading
-        int r_fd = open(reply_path, O_RDONLY);
-        // if unable to open
-        if (r_fd < 0) {
-            unlink(reply_path); // remove the reply fifo before exiting
-            errormsg("ERROR: unable to open reply fifo for reading");
-        }
-
-        // read the reply message from the reply fifo
-        char reply_buffer[REPLY_MAX_TOTAL];
-        memset(reply_buffer, 0, sizeof(reply_buffer)); // zero out the buffer
-
-        ssize_t bytes_read = read(r_fd, reply_buffer, sizeof(reply_buffer));
-        // if unable to read
-        if (bytes_read < 0) {
-            close(r_fd);
-            unlink(reply_path); // remove the reply fifo before exiting
-            errormsg("ERROR: unable to read reply message from reply fifo");
-        }
-
-        // parse and print reply 
-        if (bytes_read >= sizeof(ReplyHeader)) {
-            ReplyHeader* reply = (ReplyHeader*)reply_buffer;
-            // if error print that out 
-            if (reply->reply_type == REPLY_ERROR) {
-                printf("Received error reply: code=%u\n", reply->status);
-            } else {
-                printf("Received reply: type=%u, job_id=%lu, status=%s, flags=%u, payload_len=%u\n",
-                       reply->reply_type, reply->job_id, job_state_name(reply->status), reply->flags, reply->payload_len);
-            }
-            // if there is a result, print it out
-            if (reply->payload_len > 0 && bytes_read >= sizeof(ReplyHeader) + reply->payload_len) {
-                printf("Payload: %.*s\n", reply->payload_len, reply_buffer + sizeof(ReplyHeader));
-            }
-        } else {
-            printf("Received incomplete reply message.\n");
-        }
-
-        // close the reply fifo after reading
-        close(r_fd);
-        fflush(stdout);
+        // wait (up to 3 seconds) for the dispatcher's immediate reply:
+        // an ACK with the new job id, a status/list/stats answer, or an error
+        print_replies(r_fd, 3000);
     }
 
+    // show anything that arrived while we were quitting
+    print_replies(r_fd, 0);
+
     // clean up: close the reply fifo and remove it
+    close(r_fd);
     unlink(reply_path);
     printf("client process (pid: %d) exiting.\n", getpid());
     fflush(stdout);
