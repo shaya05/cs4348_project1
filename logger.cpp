@@ -1,3 +1,4 @@
+// Name: Aditya S, Akshaya M
 // logger.cpp - persistent record of system activity.
 #include "struct.h"
 
