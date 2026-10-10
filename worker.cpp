@@ -1,3 +1,4 @@
+// Name: Aditya S, Akshaya M
 // worker.cpp - pulls jobs from the message queue, runs them, stores the result in shared memory, and signals the Dispatcher.
 
 #include "struct.h"
