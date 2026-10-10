@@ -7,27 +7,27 @@
 #include <sys/msg.h>
 
 struct JobInfo {
-    uint64_t    id;
-    int32_t     client_pid;
-    uint32_t    type;
-    uint32_t    state;
-    uint32_t    slot;
-    int32_t     worker_pid;
-    int64_t     t_received;
-    int64_t     t_done;
+    uint64_t id;
+    int32_t client_pid;
+    uint32_t type;
+    uint32_t state;
+    uint32_t slot;
+    int32_t worker_pid;
+    int64_t t_received;
+    int64_t t_done;
     std::string desc;
     std::string reply_fifo;
 };
 
-static SharedRegion*             g_shm = nullptr;
-static int                       g_qid = -1;
-static int                       g_fifo_fd = -1;
-static int                       g_fifo_keepalive = -1;   // our own write end so poll() never sees EOF
-static int                       g_sigpipe[2] = {-1, -1}; // self-pipe: signal handler -> main loop
-static volatile sig_atomic_t     g_stop = 0;
-static uint64_t                  g_next_id = 1;
-static uint64_t                  g_submitted = 0, g_rejected = 0;
-static int64_t                   g_start_ms = 0;
+static SharedRegion* g_shm = nullptr;
+static int g_qid = -1;
+static int g_fifo_fd = -1;
+static int g_fifo_keepalive = -1;   // our own write end so poll() never sees EOF
+static int g_sigpipe[2] = {-1, -1}; // self-pipe: signal handler -> main loop
+static volatile sig_atomic_t g_stop = 0;
+static uint64_t g_next_id = 1;
+static uint64_t g_submitted = 0, g_rejected = 0;
+static int64_t g_start_ms = 0;
 static std::map<uint64_t, JobInfo> g_jobs;                // job table (outlives the shm slot)
 
 // ---------------------------------------------------------------- signals
