@@ -64,7 +64,7 @@ int main() {
     pthread_mutexattr_t mutex_attr;
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
-    pthread_mutex_setrobust(&mutex_attr, PTHREAD_MUTEX_ROBUST);
+    pthread_mutexattr_setrobust(&mutex_attr, PTHREAD_MUTEX_ROBUST);
 
     // make the locks for stats and events
     pthread_mutex_init(&shared_region->header.stats_lock, &mutex_attr);
@@ -77,8 +77,46 @@ int main() {
     }
 
     // put in magic number to show everything is set up!
-    __atomic_store(&shared_region->header.magic, SHM_MAGIC, __ATOMIC_RELEASE);
+    __atomic_store_n(&shared_region->header.magic, SHM_MAGIC, __ATOMIC_RELEASE);
+    printf("dispatcher setup complete (pid: %d)\n", getpid());
+    fflush(stdout);
 
+    // create the request FIFO
+    unlink(REQUEST_FIFO_PATH); // remove if exists
+    if (mkfifo(REQUEST_FIFO_PATH, S_IRUSR | S_IWUSR) < 0) {
+        errormsg("ERROR: unable to create request FIFO");
+    }
+
+    // open the request fifo
+    int r_fd = open(REQUEST_FIFO_PATH, O_RDONLY);
+    if (r_fd < 0) {
+        errormsg("ERROR: unable to open request FIFO");
+    }
+    printf("request FIFO opened (fd: %d)\n", r_fd);
+    fflush(stdout);
+
+    // request loop
+    Request request;
+    while (true) {
+        // read a request from the FIFO
+        ssize_t bytes_read = read(r_fd, &request, sizeof(Request));
+        if (bytes_read < 0) {
+            errormsg("ERROR: unable to read from request FIFO");
+        } else if (bytes_read == 0) {
+            printf("request FIFO closed\n");
+            fflush(stdout);
+            continue;
+        }
+        if (bytes_read != sizeof(Request)) {
+            printf("incomplete read from request FIFO\n");
+            fflush(stdout);
+        }
+
+        printf("received request: type=%d, job=%d, client_pid=%d\n", request.msg_type, request.job_type, request.client_pid);
+        fflush(stdout);
+
+        post_event(shared_region, EV_JOB_SUBMITTED, request.client_pid, request.job_id, "%u type request received", request.msg_type);
+    }
 
     return 0; //the end
 }
