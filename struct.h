@@ -48,6 +48,7 @@ constexpr size_t REQUEST_SIZE = 512;
 constexpr size_t REPLY_MAX_TOTAL = 4096;
 constexpr uint32_t EVENT_RING = 256;
 constexpr uint32_t EVENT_TEXT = 96;
+constexpr uint32_t SHM_MAGIC = 0x43483401;
 
 // ---------------------------------------------------------------------------
 // Channel 1: Request (Client -> Dispatcher), exactly 512 bytes
@@ -90,8 +91,8 @@ enum JobState : uint32_t {
     JOB_QUEUED = 0, 
     JOB_RUNNING = 1, 
     JOB_DONE = 2,
-    JOB_FAILED = 3, J
-    OB_TIMED_OUT = 4, 
+    JOB_FAILED = 3,
+    JOB_TIMED_OUT = 4, 
     JOB_UNKNOWN = 5
 };
 
