@@ -1,5 +1,4 @@
 // struct.h - shared definitions for all four processes (CS 4348 Project 1)
-
 #ifndef STRUCT_H
 #define STRUCT_H
 
@@ -39,7 +38,6 @@
 // Constants
 // ---------------------------------------------------------------------------
 constexpr uint32_t PROTO_VERSION = 1;
-constexpr uint32_t SHM_MAGIC = 0x43483401;
 constexpr uint32_t NUM_SLOTS = 64;
 constexpr uint32_t NUM_JOB_TYPES = 6;
 constexpr size_t PARAMS_LEN = 256;
@@ -92,8 +90,8 @@ enum JobState : uint32_t {
     JOB_QUEUED = 0, 
     JOB_RUNNING = 1, 
     JOB_DONE = 2,
-    JOB_FAILED = 3, 
-    JOB_TIMED_OUT = 4, 
+    JOB_FAILED = 3, J
+    OB_TIMED_OUT = 4, 
     JOB_UNKNOWN = 5
 };
 
@@ -158,7 +156,7 @@ struct Slot {
     uint8_t logged; // set by Logger
     uint8_t pad0[2];
     uint64_t job_id;
-    int32_t client_pid;
+    int32_t lient_pid;
     int32_t  worker_pid;
     uint32_t job_type;
     uint32_t outcome;
@@ -259,7 +257,7 @@ inline const char* event_name(uint32_t t) {
 
 // Lock a (robust) process-shared mutex. If a process died while holding it,
 // mark it consistent so the system keeps running.
-inline void shm_lock(pthread_mutex_t* m) {  
+inline void shm_lock(pthread_mutex_t* m) {
     int rc = pthread_mutex_lock(m);
     if (rc == EOWNERDEAD) pthread_mutex_consistent(m);
 }
