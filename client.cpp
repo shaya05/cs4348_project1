@@ -158,7 +158,7 @@ int main() {
             if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
                 unsigned long job_id = 0;
                 // make sure job id is valid and non-reserved
-                if (sscanf(buffer, "%llu", &request.job_id) != 1 || request.job_id == 0) {
+                if (sscanf(buffer, "%lu", &request.job_id) != 1 || request.job_id == 0) {
                     printf("invalid job id. please try again.\n");
                     fflush(stdout);
                     continue;
@@ -233,7 +233,7 @@ int main() {
             if (reply->reply_type == REPLY_ERROR) {
                 printf("Received error reply: code=%u\n", reply->status);
             } else {
-                printf("Received reply: type=%u, job_id=%llu, status=%s, flags=%u, payload_len=%u\n",
+                printf("Received reply: type=%u, job_id=%lu, status=%s, flags=%u, payload_len=%u\n",
                        reply->reply_type, reply->job_id, job_state_name(reply->status), reply->flags, reply->payload_len);
             }
             // if there is a result, print it out
