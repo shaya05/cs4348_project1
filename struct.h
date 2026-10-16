@@ -174,6 +174,8 @@ enum EventType : uint32_t {
     EV_DISPATCHER_STOP, 
     EV_WORKER_START, 
     EV_WORKER_STOP,
+    EV_CLIENT_START,
+    EV_CLIENT_STOP,
     EV_JOB_SUBMITTED, 
     EV_JOB_REJECTED, 
     EV_JOB_STARTED, 
@@ -252,7 +254,7 @@ inline const char* err_name(uint32_t c) {
 }
 
 inline const char* event_name(uint32_t t) {
-    static const char* names[] = {"?", "DISPATCHER_START", "DISPATCHER_STOP", "WORKER_START", "WORKER_STOP", "JOB_SUBMITTED", "JOB_REJECTED", "JOB_STARTED", "JOB_FINISHED", "SIGNAL_SENT", "SIGNAL_RECEIVED", "JOB_DELIVERED", "CLIENT_UNREACHABLE", "WARNING"};
+    static const char* names[] = {"?", "DISPATCHER_START", "DISPATCHER_STOP", "WORKER_START", "WORKER_STOP", "CLIENT_START", "CLIENT_STOP", "JOB_SUBMITTED", "JOB_REJECTED", "JOB_STARTED", "JOB_FINISHED", "SIGNAL_SENT", "SIGNAL_RECEIVED", "JOB_DELIVERED", "CLIENT_UNREACHABLE", "WARNING"};
     return t <= EV_WARNING ? names[t] : names[0];
 }
 
@@ -343,6 +345,7 @@ inline bool parse_u64(const std::string& t, uint64_t& out) {
     return true;
 }
 
+// converts string to ints
 inline bool parse_i64(const std::string& t, int64_t& out) {
     if (t.empty() || t.size() > 20) return false;
     size_t i = (t[0] == '-') ? 1 : 0;
@@ -355,6 +358,7 @@ inline bool parse_i64(const std::string& t, int64_t& out) {
     return true;
 }
 
+// make sure parameters are valid for given job type
 inline bool validate_params(uint32_t type, const std::string& p, std::string& err) {
     if (p.size() >= PARAMS_LEN) { err = "parameters too long (max 255 characters)"; return false; }
     std::vector<std::string> tok = split_ws(p);
@@ -413,6 +417,7 @@ inline bool validate_params(uint32_t type, const std::string& p, std::string& er
     }
 }
 
+// make a description string for a job (used in the shared memory slot)
 inline std::string make_description(uint32_t type, const std::string& params) {
     std::string d = job_name(type);
     d += " (" + truncate_text(params, 60) + ")";
