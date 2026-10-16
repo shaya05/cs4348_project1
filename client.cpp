@@ -128,6 +128,18 @@ int main() {
         errormsg("ERROR: unable to open reply fifo");
     }
 
+    // connect to shared memory
+    SharedRegion* shared_region = attach_shared(30);
+        // make sure it works
+    if (!shared_region) {
+        errormsg("ERROR: unable to attach to shared memory");
+        fflush(stdout);
+        close(r_fd);
+        unlink(reply_path);
+    }
+    // post client start
+    post_event(shared_region, EV_CLIENT_START, getpid(), 0, "client up");
+
     // writing to a fifo nobody reads should give an error, not kill us
     signal(SIGPIPE, SIG_IGN);
 
@@ -171,19 +183,13 @@ int main() {
 
         // make sure valid input => an int
         int msg_input = 0;
-        if (sscanf(buffer, "%d", &msg_input) != 1) {
-            printf("Invalid input. Please enter a number between 1 and 6.\n");
-            fflush(stdout);
-            continue;
-        }
-
-        //make sure input in range
-        if (msg_input < 1 || msg_input > 6) {
-            printf("Unknown request. Please enter a number between 1 and 6.\n");
+        if (strlen(buffer) != 2 || buffer[0] < '1' || buffer[0] > '6' || buffer[1] != '\n') {
+            printf("invalid input. please try again with a number between 1 and 6.\n");
             fflush(stdout);
             continue;
         }
         // save
+        msg_input = buffer[0] - '0';
         request.msg_type = msg_input;
 
         // handle based on message type
@@ -205,20 +211,14 @@ int main() {
 
             // make sure a job type is entered
             if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
-                int job_type_input = 0;
                 // make sure job type is int
-                if (sscanf(buffer, "%d", &job_type_input) != 1) {
+                if (strlen(buffer) != 2 || buffer[0] < '1' || buffer[0] > '6' || buffer[1] != '\n') {
                     printf("invalid job type. please try again.\n");
                     fflush(stdout);
                     continue;
                 }
-                // make sure job type is valid
-                if (job_type_input < 1 || job_type_input > 6) {
-                    printf("unknown job type. please try again.\n");
-                    fflush(stdout);
-                    continue; 
-                }
                 // save job type entered
+                int job_type_input = buffer[0] - '0';
                 request.job_type = job_type_input;
             } else {
                 printf("no job type entered, please try again.\n");
@@ -307,6 +307,11 @@ int main() {
 
         // indicate that the request has been sent
         printf("request sent to dispatcher.\n");
+        // check if a shutdown so client also exits
+        if (request.msg_type == MSG_SHUTDOWN) {
+            running = false;
+        }   
+
         fflush(stdout);
 
         // wait (up to 3 seconds) for the dispatcher's immediate reply:
@@ -320,6 +325,8 @@ int main() {
     // clean up: close the reply fifo and remove it
     close(r_fd);
     unlink(reply_path);
+    post_event(shared_region, EV_CLIENT_STOP, getpid(), 0, "client exiting");
+    munmap(shared_region, sizeof(SharedRegion));
     printf("client process (pid: %d) exiting.\n", getpid());
     fflush(stdout);
 
