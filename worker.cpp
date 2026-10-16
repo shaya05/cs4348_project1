@@ -313,7 +313,6 @@ int main(int argc, char** argv) {
 
     if (!__atomic_load_n(&shm->header.shutdown, __ATOMIC_ACQUIRE)) {
         post_event(shm, EV_WORKER_STOP, getpid(), 0, "worker stopping");
-        usleep(50000);  //to log this stop properly and give time
     }
     munmap(shm, sizeof(SharedRegion));
     return 0;
