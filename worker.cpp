@@ -224,7 +224,14 @@ static void process_job(SharedRegion* shm, const JobMsg& m, int delay_ms) {
     std::string result;
     uint32_t outcome = execute_job(m.job_type, m.params, result);
     if (result.size() >= RESULT_LEN) {
-        result.resize(RESULT_LEN - 1);
+        std::string warn = "\n[WARNING: Result truncated.]";
+        if (RESULT_LEN > warn.size()) {
+            result.resize(RESULT_LEN - warn.size() - 1);
+            result += warn;
+        }
+        else {
+            result.resize(RESULT_LEN - 1);
+        }
         outcome = OUTCOME_TRUNCATED;
     }
 
@@ -313,6 +320,7 @@ int main(int argc, char** argv) {
 
     if (!__atomic_load_n(&shm->header.shutdown, __ATOMIC_ACQUIRE)) {
         post_event(shm, EV_WORKER_STOP, getpid(), 0, "worker stopping");
+        usleep(5000); //extra time for logger to catch shutdown
     }
     munmap(shm, sizeof(SharedRegion));
     return 0;
