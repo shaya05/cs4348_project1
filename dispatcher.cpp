@@ -253,6 +253,12 @@ static std::string describe_job(JobInfo& j) {
     s += "  received:  " + format_ms(j.t_received) + "\n";
     if (j.t_done) s += "  completed: " + format_ms(j.t_done) + "\n";
     if (j.worker_pid) s += "  worker:    pid " + std::to_string(j.worker_pid) + "\n";
+    if (j.state == JOB_DONE || j.state == JOB_FAILED) {
+        // trim the result length if needed
+        uint32_t len = s.result_len > RESULT_LEN - 1 ? (uint32_t)RESULT_LEN - 1 : j.result_len;
+        std::string result(j.result, len);
+        s += "  result:    " + result + "\n";
+    }
     return s;
 }
 
