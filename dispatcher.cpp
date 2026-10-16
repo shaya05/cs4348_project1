@@ -248,6 +248,7 @@ static void handle_submit(const Request& rq, const std::string& fifo) {
 
 static std::string describe_job(JobInfo& j) {
     refresh_job(j);
+    Slot& slot = g_shm->slots[j.slot];
     std::string s = "Job " + std::to_string(j.id) + ": " + j.desc + "\n";
     s += "  state:     " + std::string(job_state_name(j.state)) + "\n";
     s += "  received:  " + format_ms(j.t_received) + "\n";
@@ -255,8 +256,8 @@ static std::string describe_job(JobInfo& j) {
     if (j.worker_pid) s += "  worker:    pid " + std::to_string(j.worker_pid) + "\n";
     if (j.state == JOB_DONE || j.state == JOB_FAILED) {
         // trim the result length if needed
-        uint32_t len = s.result_len > RESULT_LEN - 1 ? (uint32_t)RESULT_LEN - 1 : j.result_len;
-        std::string result(j.result, len);
+        uint32_t len = slot.result_len > RESULT_LEN - 1 ? (uint32_t)RESULT_LEN - 1 : slot.result_len;
+        std::string result(slot.result, len);
         s += "  result:    " + result + "\n";
     }
     return s;
