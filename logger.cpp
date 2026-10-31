@@ -1,5 +1,5 @@
 // Name: Aditya S, Akshaya M
-// logger.cpp - persistent record of system activity.
+// logger.cpp - persistent record of system activity
 #include "struct.h"
 
 static volatile sig_atomic_t g_stop = 0;
