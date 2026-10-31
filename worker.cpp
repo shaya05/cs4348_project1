@@ -53,7 +53,7 @@ static uint32_t execute_job(uint32_t type, const char* params, std::string& out)
                     if (n < 2) continue;
                     bool is_prime = true;
                     // check if divisible by any number from 2 to sqrt(n)
-                    for (uint64_t d = 2; d * d <= n; ++d) {
+                    for (uint64_t d = 2; d <= n / d; ++d) {
                         if (n % d == 0) {
                             is_prime = false;
                             break;
@@ -107,7 +107,7 @@ static uint32_t execute_job(uint32_t type, const char* params, std::string& out)
 
                 // check if divisible by any number from 2 to sqrt(n)
                 bool is_prime = true;
-                for (uint64_t d = 2; d * d <= n; ++d) {
+                for (uint64_t d = 2; d <= n / d; ++d) {
                     if (n % d == 0) {
                         is_prime = false;
                         break;
@@ -131,7 +131,7 @@ static uint32_t execute_job(uint32_t type, const char* params, std::string& out)
                 uint64_t copy = n;
                 std::vector<uint64_t> factors;
                 // find prime factors
-                for (uint64_t d = 2; d * d <= copy; ++d) {
+                for (uint64_t d = 2; d <= copy / d; ++d) {
                     while (copy % d == 0) {
                         factors.push_back(d);
                         copy /= d;
