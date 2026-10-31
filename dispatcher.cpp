@@ -1,5 +1,6 @@
 // Name: Aditya Singh, Akshaya Muthusamy
-// dispatcher.cpp - central coordinator.
+// dispatcher.cpp - central coordinator
+
 #include "struct.h"
 
 #include <map>
