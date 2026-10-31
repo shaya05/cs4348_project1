@@ -1,5 +1,5 @@
 //Name : Aditya S, Akshaya M
-// struct.h - shared definitions for all four processes
+// struct.h - shared definitions for all four processes.
 #ifndef STRUCT_H
 #define STRUCT_H
 
