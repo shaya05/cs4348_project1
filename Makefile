@@ -8,6 +8,7 @@ LIBRARIES = -lrt -lpthread
 EXECUTABLES = client dispatcher worker logger
 
 # make executables out of all
+.PHONY: all clean
 all: $(EXECUTABLES)
 
 # build each executable 
